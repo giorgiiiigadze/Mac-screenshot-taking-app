@@ -35,7 +35,12 @@ final class ScreenCaptureService: Sendable {
         guard let display = selectedDisplay(from: content.displays) else {
             throw CaptureError.screenUnavailable
         }
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        // Excluding our process makes the result safe even if AppKit has not yet
+        // completed the window-ordering update for the countdown UI.
+        let ownWindows = content.windows.filter {
+            $0.owningApplication?.bundleIdentifier == Bundle.main.bundleIdentifier
+        }
+        let filter = SCContentFilter(display: display, excludingWindows: ownWindows)
         let configuration = SCStreamConfiguration()
         configuration.width = display.width
         configuration.height = display.height
@@ -90,6 +95,10 @@ final class CameraCaptureService: @unchecked Sendable {
                     continuation.resume()
                 }
             }
+            // A still-photo request issued in the first few hardware frames can be
+            // black on built-in and USB cameras. This is only a brief warm-up; the
+            // user still gets an immediate capture with no visible countdown.
+            try await Task.sleep(for: .milliseconds(450))
         }
     }
 
@@ -104,6 +113,18 @@ final class CameraCaptureService: @unchecked Sendable {
                 self.delegate = delegate
                 let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
                 output.capturePhoto(with: settings, delegate: delegate)
+            }
+        }
+    }
+
+    func stop() async {
+        guard session.isRunning else { return }
+        await withCheckedContinuation { continuation in
+            queue.async { [self] in
+                if session.isRunning {
+                    session.stopRunning()
+                }
+                continuation.resume()
             }
         }
     }

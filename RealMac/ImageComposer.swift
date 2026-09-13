@@ -2,8 +2,21 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
+enum CameraCorner: String, Codable, CaseIterable {
+    case topLeft, topRight, bottomLeft, bottomRight
+
+    var label: String {
+        switch self {
+        case .topLeft: "Top left"
+        case .topRight: "Top right"
+        case .bottomLeft: "Bottom left"
+        case .bottomRight: "Bottom right"
+        }
+    }
+}
+
 enum ImageComposer {
-    static func compose(screen: CGImage, reaction: CGImage) throws -> NSImage {
+    static func compose(screen: CGImage, reaction: CGImage, corner: CameraCorner = .topRight) throws -> NSImage {
         let width = screen.width
         let height = screen.height
         guard let context = CGContext(
@@ -22,18 +35,18 @@ enum ImageComposer {
         let margin = max(28, CGFloat(width) * 0.025)
         let overlayWidth = CGFloat(width) * 0.25
         let overlayHeight = overlayWidth * 4 / 3
-        let overlayRect = CGRect(
-            x: CGFloat(width) - overlayWidth - margin,
-            y: CGFloat(height) - overlayHeight - margin,
-            width: overlayWidth,
-            height: overlayHeight
+        let overlayRect = overlayRect(
+            corner: corner,
+            canvas: CGSize(width: width, height: height),
+            overlay: CGSize(width: overlayWidth, height: overlayHeight),
+            margin: margin
         )
         let radius = overlayWidth * 0.08
 
         context.saveGState()
         context.setShadow(offset: CGSize(width: 0, height: -8), blur: 24, color: NSColor.black.withAlphaComponent(0.45).cgColor)
         context.setFillColor(NSColor.white.cgColor)
-        context.addPath(CGPath(roundedRect: overlayRect.insetBy(dx: -7, dy: -7), cornerWidth: radius + 7, cornerHeight: radius + 7, transform: nil))
+        context.addPath(CGPath(roundedRect: overlayRect.insetBy(dx: -3, dy: -3), cornerWidth: radius + 3, cornerHeight: radius + 3, transform: nil))
         context.fillPath()
         context.restoreGState()
 
@@ -63,6 +76,10 @@ enum ImageComposer {
         return data as Data
     }
 
+    static func jpegData(for image: CGImage) throws -> Data {
+        try jpegData(for: NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height)))
+    }
+
     private static func aspectFillRect(image: CGImage, destination: CGRect) -> CGRect {
         let sourceRatio = CGFloat(image.width) / CGFloat(image.height)
         let destinationRatio = destination.width / destination.height
@@ -72,5 +89,25 @@ enum ImageComposer {
         }
         let height = destination.width / sourceRatio
         return CGRect(x: destination.minX, y: destination.midY - height / 2, width: destination.width, height: height)
+    }
+
+    private static func overlayRect(corner: CameraCorner, canvas: CGSize, overlay: CGSize, margin: CGFloat) -> CGRect {
+        let x: CGFloat
+        let y: CGFloat
+        switch corner {
+        case .topLeft:
+            x = margin
+            y = canvas.height - overlay.height - margin
+        case .topRight:
+            x = canvas.width - overlay.width - margin
+            y = canvas.height - overlay.height - margin
+        case .bottomLeft:
+            x = margin
+            y = margin
+        case .bottomRight:
+            x = canvas.width - overlay.width - margin
+            y = margin
+        }
+        return CGRect(origin: CGPoint(x: x, y: y), size: overlay)
     }
 }

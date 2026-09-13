@@ -48,10 +48,28 @@ private struct MenuBarView: View {
             .controlSize(.large)
             .disabled(model.isWorking)
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Timer").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Picker("Timer", selection: $model.countdownDuration) {
+                    Text("Instant").tag(0)
+                    Text("3 seconds").tag(3)
+                    Text("5 seconds").tag(5)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .disabled(model.isWorking)
+            }
+
             HStack {
                 Text("⌘⇧B").font(.caption.monospaced()).foregroundStyle(.secondary)
                 Spacer()
-                Button("Open Preview") { PreviewWindowController.shared.show(model: model) }
+                Button(model.isWorking ? "Cancel" : "Open Preview") {
+                    if model.isWorking {
+                        model.cancelCapture()
+                    } else {
+                        PreviewWindowController.shared.show(model: model)
+                    }
+                }
                     .buttonStyle(.plain)
             }
             Divider()
